@@ -1,0 +1,481 @@
+<title>Gold News Checker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column, phone first. Events grouped by release time, so releases that land together share a card and a combined verdict. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --ink: #151a22;
+  --muted: #566070;
+  --line: #dde2ea;
+  --input-bg: #f7f8fb;
+  --gold: #8f6300;
+  --gold-soft: #f4e6c6;
+  --long: #0b7350;
+  --long-bg: #dcf2e8;
+  --short: #b3261e;
+  --short-bg: #fbe2df;
+  --wait: #4d5666;
+  --wait-bg: #e7eaf0;
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1218;
+    --surface: #161b23;
+    --ink: #e8ebf0;
+    --muted: #98a2b1;
+    --line: #29313d;
+    --input-bg: #0f141b;
+    --gold: #e2b04a;
+    --gold-soft: #3a2f14;
+    --long: #3fc28e;
+    --long-bg: #123629;
+    --short: #ff7b70;
+    --short-bg: #40201d;
+    --wait: #aab3c0;
+    --wait-bg: #252b35;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1218;
+  --surface: #161b23;
+  --ink: #e8ebf0;
+  --muted: #98a2b1;
+  --line: #29313d;
+  --input-bg: #0f141b;
+  --gold: #e2b04a;
+  --gold-soft: #3a2f14;
+  --long: #3fc28e;
+  --long-bg: #123629;
+  --short: #ff7b70;
+  --short-bg: #40201d;
+  --wait: #aab3c0;
+  --wait-bg: #252b35;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 56px;
+}
+.wrap { max-width: 720px; margin: 0 auto; }
+h1, h2, h3, p { margin: 0; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* header */
+header { padding-block: 28px 6px; display: flex; flex-direction: column; gap: 8px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--gold); }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 34px; line-height: 1.1; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { color: var(--muted); max-width: 52ch; }
+.next {
+  margin-top: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; align-items: baseline;
+}
+.next .lbl { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); display: block; }
+.next .what { font-weight: 600; min-width: 0; }
+.next .when { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+.next .count { font-family: var(--font-mono); font-weight: 600; font-size: 20px; color: var(--gold); }
+
+/* day chips */
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-block: 16px 10px; }
+.chip {
+  flex: 0 0 auto;
+  font: 500 14px var(--font-body);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip:focus-visible, .btn:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* days and slots */
+.day { margin-top: 18px; }
+.day h2 { font-family: var(--font-display); font-weight: 700; font-size: 21px; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.today { font: 600 11px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; background: var(--gold-soft); color: var(--ink); padding: 3px 8px; border-radius: 6px; }
+.slot { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+.slot-head { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.slot-time { font-family: var(--font-mono); font-weight: 600; font-size: 18px; }
+.slot-meta { color: var(--muted); font-size: 13px; }
+
+.ev { padding: 14px; }
+.ev + .ev { border-top: 1px solid var(--line); }
+.ev-head { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
+.ev-name { font-size: 15px; font-weight: 600; min-width: 0; text-wrap: balance; }
+.imp { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.imp-bar { width: 52px; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.imp-bar i { display: block; height: 100%; background: var(--gold); }
+
+.ev-grid { margin-top: 10px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.f { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.lbl { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.val, input {
+  font-family: var(--font-mono); font-size: 16px; font-variant-numeric: tabular-nums;
+  padding: 9px 10px; border: 1px solid transparent; border-radius: 8px; width: 100%; min-width: 0; color: var(--ink); background: transparent;
+}
+input { border-color: var(--line); background: var(--input-bg); }
+input::placeholder { color: var(--muted); opacity: 0.7; }
+
+.verdict {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 12px;
+  border-radius: 8px; padding: 10px 12px; min-height: 56px;
+  background: var(--wait-bg); color: var(--ink);
+}
+.v-word { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 0.02em; min-width: 72px; color: var(--wait); }
+.v-why { font-size: 13px; line-height: 1.4; min-width: 0; }
+.verdict[data-v="LONG"], .combo[data-v="LONG"] { background: var(--long-bg); }
+.verdict[data-v="LONG"] .v-word, .combo[data-v="LONG"] .v-word { color: var(--long); }
+.verdict[data-v="SHORT"], .combo[data-v="SHORT"] { background: var(--short-bg); }
+.verdict[data-v="SHORT"] .v-word, .combo[data-v="SHORT"] .v-word { color: var(--short); }
+.verdict[data-v="WAIT"] .v-word, .combo[data-v="WAIT"] .v-word { color: var(--wait); }
+.rule { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+
+.combo { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); background: var(--wait-bg); }
+.combo .lbl { display: block; }
+
+@media (min-width: 640px) {
+  .ev-grid { grid-template-columns: repeat(3, minmax(0, 96px)) minmax(0, 1fr); align-items: end; }
+  .verdict { grid-column: auto; }
+}
+
+/* reference */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-top: 18px; }
+.panel h2 { font-family: var(--font-display); font-weight: 700; font-size: 20px; margin-bottom: 10px; }
+.panel p + p, .panel ul + p, .panel .tbl + p { margin-top: 10px; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+td.L { color: var(--long); font-weight: 600; }
+td.S { color: var(--short); font-weight: 600; }
+ul { margin: 0; padding-left: 20px; }
+li + li { margin-top: 6px; }
+.btn {
+  font: 500 14px var(--font-body); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 14px; cursor: pointer;
+}
+.tools { display: flex; justify-content: flex-end; margin-top: 8px; }
+.foot { margin-top: 18px; font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">XAUUSD · waqt PKT</p>
+    <h1>Gold News Checker</h1>
+    <p class="sub">2 se 6 November 2026. Cons Investing.com se likhein, Act aate hi likhein, aur turant Long, Short ya Wait milega.</p>
+    <div class="next" id="next" aria-live="polite"></div>
+  </header>
+
+  <nav class="chips" id="chips" aria-label="Din chunein"></nav>
+  <div id="list"></div>
+  <div class="tools"><button class="btn" id="clear" type="button">Sab Act saaf karo</button></div>
+
+  <section class="panel">
+    <h2>Rules ek nazar mein</h2>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Event</th><th>Act Cons se kam</th><th>Act Cons se zyada</th></tr></thead>
+        <tbody>
+          <tr><td>PMI, NFP, ADP, JOLTS</td><td class="L">LONG</td><td class="S">SHORT</td></tr>
+          <tr><td>ISM Prices, Avg Hourly Earnings</td><td class="L">LONG</td><td class="S">SHORT</td></tr>
+          <tr><td>Unemployment Rate, Jobless Claims</td><td class="S">SHORT</td><td class="L">LONG</td></tr>
+          <tr><td>Act = Cons</td><td colspan="2">WAIT</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Hamesha Cons se compare karein, Prev se nahi. Unemployment aur Claims ulte hain: zyada aaye to jobs kamzor, to gold upar.</p>
+    <p>Ek hi waqt par kai events hon (jaise Friday 18:30) to sab ka Act daalte hi Combo aata hai. Sab ek taraf hon to wohi side, alag alag hon to WAIT.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Trade se pehle</h2>
+    <ul>
+      <li>Lot chhota rakhein aur stop loss pehle lagayein.</li>
+      <li>Pehle move ke baad peeche na bhagein. Pullback ya agli candle ka wait karein.</li>
+      <li>Signal alag alag hon to WAIT.</li>
+      <li>Event se pehle Cons dobara dekh lein, woh badal sakta hai.</li>
+    </ul>
+  </section>
+
+  <p class="foot">Yeh rules khabar ki seedhi samajh par hain, koi guarantee nahi. Fed statement aur speech ka tone yeh tool nahi padh sakta. Woh khabrein alag se dekhein.</p>
+</div>
+
+<script>
+(function () {
+  var EVENTS = [
+    { id: 'spm1', d: '2026-11-02', t: '19:45', n: 'S&P Global Manufacturing PMI (Oct)', imp: 4, k: 'growth', u: '', prev: '56.0', cons: '', small: 0.3 },
+    { id: 'ismm', d: '2026-11-02', t: '20:00', n: 'ISM Manufacturing PMI (Oct)', imp: 7, k: 'growth', u: '', prev: '54.5', cons: '', small: 0.5 },
+    { id: 'ismmp', d: '2026-11-02', t: '20:00', n: 'ISM Manufacturing Prices (Oct)', imp: 7, k: 'infl', u: '', prev: '77.9', cons: '', small: 1 },
+    { id: 'spm2', d: '2026-11-03', t: '19:45', n: 'S&P Global Manufacturing PMI (Oct)', imp: 4, k: 'growth', u: '', prev: '55.9', cons: '56.0', small: 0.3 },
+    { id: 'jolts', d: '2026-11-03', t: '20:00', n: 'JOLTS Job Openings (Sep)', imp: 6, k: 'growth', u: 'M', prev: '7.079M', cons: '', small: 0.1 },
+    { id: 'adp', d: '2026-11-04', t: '18:15', n: 'ADP Nonfarm Employment Change (Oct)', imp: 7, k: 'growth', u: 'K', prev: '90K', cons: '', small: 15 },
+    { id: 'sps', d: '2026-11-04', t: '19:45', n: 'S&P Global Services PMI (Oct)', imp: 4, k: 'growth', u: '', prev: '57.9', cons: '57.9', small: 0.3 },
+    { id: 'ismnp', d: '2026-11-04', t: '20:00', n: 'ISM Non-Manufacturing Prices (Oct)', imp: 6, k: 'infl', u: '', prev: '74.0', cons: '', small: 1 },
+    { id: 'ismn', d: '2026-11-04', t: '20:00', n: 'ISM Non-Manufacturing PMI (Oct)', imp: 7, k: 'growth', u: '', prev: '54.9', cons: '', small: 0.5 },
+    { id: 'oil', d: '2026-11-04', t: '20:30', n: 'Crude Oil Inventories', imp: null, k: 'oil', u: 'M', prev: '-1.892M', cons: '', small: 0 },
+    { id: 'claims', d: '2026-11-05', t: '18:30', n: 'Initial Jobless Claims', imp: 6, k: 'claims', u: 'K', prev: '194K', cons: '', small: 5 },
+    { id: 'nfp', d: '2026-11-06', t: '18:30', n: 'Nonfarm Payrolls (Oct)', imp: 10, k: 'growth', u: 'K', prev: '29K', cons: '', small: 15 },
+    { id: 'unemp', d: '2026-11-06', t: '18:30', n: 'Unemployment Rate (Oct)', imp: 8, k: 'unemp', u: '%', prev: '4.2%', cons: '', small: 0 },
+    { id: 'ahe', d: '2026-11-06', t: '18:30', n: 'Average Hourly Earnings (MoM) (Oct)', imp: 8, k: 'infl', u: '%', prev: '0.1%', cons: '', small: 0 }
+  ];
+
+  var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var KEY = 'gold-news-checker-v1';
+  var st = { cons: {}, act: {} };
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) {
+      var o = JSON.parse(raw);
+      if (o && typeof o === 'object') { st.cons = o.cons || {}; st.act = o.act || {}; }
+    }
+  } catch (e) {}
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+
+  function num(s) {
+    if (s === null || s === undefined) return null;
+    var x = String(s).trim().replace(/[%KkMm,\s]/g, '');
+    if (x === '' || x === '-' || x === '.') return null;
+    var n = parseFloat(x);
+    return isNaN(n) ? null : n;
+  }
+  function getCons(e) { return st.cons[e.id] !== undefined ? st.cons[e.id] : e.cons; }
+  function fmt(n, u) { return String(n) + u; }
+  function dayParts(d) {
+    var p = d.split('-'); var dt = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2]));
+    return { dow: DOW[dt.getUTCDay()], day: +p[2], mon: MON[+p[1] - 1] };
+  }
+  function utcOf(e) {
+    var p = e.d.split('-'), t = e.t.split(':');
+    return Date.UTC(+p[0], +p[1] - 1, +p[2], +t[0] - 5, +t[1]);
+  }
+
+  function verdict(e) {
+    var a = num(st.act[e.id]), c = num(getCons(e));
+    if (a === null || c === null) {
+      return { v: null, why: c === null && a === null ? 'Cons aur Act likhein' : (c === null ? 'Pehle Cons likhein' : 'Act likhein') };
+    }
+    var d = Math.round((a - c) * 1e6) / 1e6;
+    if (d === 0) return { v: 'WAIT', why: 'Act = Cons, koi surprise nahi', oil: e.k === 'oil' };
+    var up = d > 0, v, why;
+    if (e.k === 'growth') {
+      v = up ? 'SHORT' : 'LONG';
+      why = up ? 'Data Cons se mazboot, dollar upar, gold neeche' : 'Data Cons se kamzor, dollar neeche, gold upar';
+    } else if (e.k === 'infl') {
+      v = up ? 'SHORT' : 'LONG';
+      why = up ? 'Inflation Cons se zyada, Fed sakht, gold neeche' : 'Inflation Cons se kam, gold upar';
+    } else if (e.k === 'unemp') {
+      v = up ? 'LONG' : 'SHORT';
+      why = up ? 'Berozgari zyada, jobs kamzor, gold upar' : 'Berozgari kam, jobs mazboot, gold neeche';
+    } else if (e.k === 'claims') {
+      v = up ? 'LONG' : 'SHORT';
+      why = up ? 'Claims zyada, jobs kamzor, gold upar' : 'Claims kam, jobs mazboot, gold neeche';
+    } else {
+      v = up ? 'SHORT' : 'LONG';
+      why = (up ? 'Inventory Cons se zyada, oil neeche' : 'Inventory Cons se kam, oil upar') + '. Gold ke liye nahi';
+    }
+    if (e.k !== 'oil' && Math.abs(d) <= (e.small || 0)) why += ' · Chhota surprise, move halka ho sakta hai';
+    return { v: v, why: why, oil: e.k === 'oil' };
+  }
+
+  function ruleText(e) {
+    var c = num(getCons(e));
+    var cs = c === null ? 'Cons' : fmt(c, e.u);
+    if (e.k === 'oil') return 'Act ' + cs + ' se kam → Oil LONG · ' + cs + ' se zyada → Oil SHORT. Gold ke liye nahi.';
+    var lo = (e.k === 'unemp' || e.k === 'claims') ? 'SHORT' : 'LONG';
+    var hi = lo === 'LONG' ? 'SHORT' : 'LONG';
+    return 'Act ' + cs + ' se kam → ' + lo + ' · ' + cs + ' se zyada → ' + hi + ' · barabar → WAIT';
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  var refs = {}, slots = {};
+
+  function updateEvent(e) {
+    var r = refs[e.id], res = verdict(e);
+    r.verdict.setAttribute('data-v', res.v || 'none');
+    r.word.textContent = res.v ? (res.oil ? 'Oil ' + res.v : res.v) : '—';
+    r.why.textContent = res.why;
+    r.rule.textContent = ruleText(e);
+  }
+
+  function updateSlot(s) {
+    if (!s.combo) return;
+    var rel = s.events.filter(function (e) { return e.k !== 'oil'; });
+    var done = rel.map(verdict).filter(function (r) { return r.v; });
+    var c = s.combo;
+    if (done.length === 0) {
+      c.box.setAttribute('data-v', 'none');
+      c.word.textContent = '—';
+      c.why.textContent = 'Sab Act aane par yahan combined jawab aayega';
+      return;
+    }
+    var dirs = done.filter(function (r) { return r.v !== 'WAIT'; }).map(function (r) { return r.v; });
+    var all = done.length === rel.length;
+    var v, why;
+    if (dirs.length === 0) { v = 'WAIT'; why = 'Koi surprise nahi'; }
+    else if (dirs.every(function (x) { return x === dirs[0]; })) { v = dirs[0]; why = all ? 'Sab ek taraf, signal saaf' : 'Ab tak ek taraf, baaqi Act ka intezar'; }
+    else { v = 'WAIT'; why = 'Signal alag alag, WAIT'; }
+    if (!all) why = done.length + '/' + rel.length + ' Act aaye · ' + why;
+    c.box.setAttribute('data-v', v);
+    c.word.textContent = v;
+    c.why.textContent = why;
+  }
+
+  function build() {
+    var list = document.getElementById('list');
+    var todayPk = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+    var days = {};
+    EVENTS.forEach(function (e) { (days[e.d] = days[e.d] || []).push(e); });
+    Object.keys(days).sort().forEach(function (d) {
+      var p = dayParts(d);
+      var sec = el('section', 'day');
+      sec.setAttribute('data-day', d);
+      var h = el('h2', '', p.dow + ' ' + p.day + ' ' + p.mon);
+      if (d === todayPk) h.appendChild(el('span', 'today', 'Aaj'));
+      sec.appendChild(h);
+
+      var bySlot = {};
+      days[d].forEach(function (e) { (bySlot[e.t] = bySlot[e.t] || []).push(e); });
+      Object.keys(bySlot).sort().forEach(function (t) {
+        var evs = bySlot[t];
+        var slot = { events: evs, combo: null };
+        var box = el('div', 'slot');
+        var head = el('div', 'slot-head');
+        head.appendChild(el('span', 'slot-time', t));
+        head.appendChild(el('span', 'slot-meta', evs.length > 1 ? evs.length + ' events ek saath' : '1 event'));
+        box.appendChild(head);
+
+        evs.forEach(function (e) {
+          var a = el('article', 'ev');
+          var eh = el('div', 'ev-head');
+          eh.appendChild(el('h3', 'ev-name', e.n));
+          var imp = el('div', 'imp');
+          if (e.imp === null) {
+            imp.appendChild(el('span', '', 'Sirf oil'));
+          } else {
+            imp.appendChild(el('span', '', e.imp + '/10'));
+            var bar = el('span', 'imp-bar'); var fill = document.createElement('i'); fill.style.width = (e.imp * 10) + '%'; bar.appendChild(fill); imp.appendChild(bar);
+          }
+          eh.appendChild(imp);
+          a.appendChild(eh);
+
+          var g = el('div', 'ev-grid');
+          var fp = el('div', 'f'); fp.appendChild(el('span', 'lbl', 'Prev')); fp.appendChild(el('span', 'val', e.prev)); g.appendChild(fp);
+
+          var fc = el('label', 'f'); fc.setAttribute('for', 'cons-' + e.id);
+          fc.appendChild(el('span', 'lbl', 'Cons'));
+          var ic = document.createElement('input'); ic.id = 'cons-' + e.id; ic.type = 'text'; ic.inputMode = 'decimal'; ic.autocomplete = 'off'; ic.placeholder = '—'; ic.value = getCons(e);
+          fc.appendChild(ic); g.appendChild(fc);
+
+          var fa = el('label', 'f'); fa.setAttribute('for', 'act-' + e.id);
+          fa.appendChild(el('span', 'lbl', 'Act'));
+          var ia = document.createElement('input'); ia.id = 'act-' + e.id; ia.type = 'text'; ia.inputMode = 'decimal'; ia.autocomplete = 'off'; ia.placeholder = '—'; ia.value = st.act[e.id] || '';
+          fa.appendChild(ia); g.appendChild(fa);
+
+          var v = el('div', 'verdict'); v.setAttribute('aria-live', 'polite');
+          var w = el('span', 'v-word', '—'); var y = el('span', 'v-why', '');
+          v.appendChild(w); v.appendChild(y); g.appendChild(v);
+          a.appendChild(g);
+          var rule = el('p', 'rule', ''); a.appendChild(rule);
+          box.appendChild(a);
+
+          refs[e.id] = { verdict: v, word: w, why: y, rule: rule, ic: ic, ia: ia };
+          ic.addEventListener('input', function () { st.cons[e.id] = ic.value; save(); updateEvent(e); updateSlot(slot); });
+          ia.addEventListener('input', function () { st.act[e.id] = ia.value; save(); updateEvent(e); updateSlot(slot); });
+        });
+
+        if (evs.filter(function (e) { return e.k !== 'oil'; }).length > 1) {
+          var cb = el('div', 'combo'); cb.setAttribute('aria-live', 'polite');
+          var lab = el('div', '');
+          lab.appendChild(el('span', 'lbl', 'Combo'));
+          var cw = el('span', 'v-word', '—'); lab.appendChild(cw);
+          var cy = el('span', 'v-why', '');
+          cb.appendChild(lab); cb.appendChild(cy);
+          box.appendChild(cb);
+          slot.combo = { box: cb, word: cw, why: cy };
+        }
+        sec.appendChild(box);
+        evs.forEach(function (e) { slots[e.id] = slot; });
+        slot.events.forEach(updateEvent);
+        updateSlot(slot);
+      });
+      list.appendChild(sec);
+    });
+  }
+
+  function buildChips() {
+    var nav = document.getElementById('chips');
+    var ds = []; EVENTS.forEach(function (e) { if (ds.indexOf(e.d) < 0) ds.push(e.d); });
+    var items = [{ k: 'all', l: 'Sab' }].concat(ds.map(function (d) { var p = dayParts(d); return { k: d, l: p.dow + ' ' + p.day }; }));
+    items.forEach(function (it) {
+      var b = el('button', 'chip', it.l); b.type = 'button';
+      b.setAttribute('aria-pressed', it.k === 'all' ? 'true' : 'false');
+      b.addEventListener('click', function () {
+        Array.prototype.forEach.call(nav.children, function (c) { c.setAttribute('aria-pressed', 'false'); });
+        b.setAttribute('aria-pressed', 'true');
+        Array.prototype.forEach.call(document.querySelectorAll('.day'), function (s) {
+          s.hidden = !(it.k === 'all' || s.getAttribute('data-day') === it.k);
+        });
+      });
+      nav.appendChild(b);
+    });
+  }
+
+  function tickNext() {
+    var box = document.getElementById('next'), now = Date.now(), nxt = null;
+    EVENTS.forEach(function (e) { var t = utcOf(e); if (t > now && (!nxt || t < utcOf(nxt))) nxt = e; });
+    box.textContent = '';
+    if (!nxt) {
+      var a = el('div', ''); a.appendChild(el('span', 'lbl', 'Agla event')); a.appendChild(el('span', 'what', 'Is hafte ke saare events ho chuke')); box.appendChild(a); return;
+    }
+    var left = utcOf(nxt) - now, m = Math.floor(left / 60000), dd = Math.floor(m / 1440), hh = Math.floor((m % 1440) / 60), mm = m % 60;
+    var cnt = (dd ? dd + 'd ' : '') + hh + 'h ' + mm + 'm';
+    var p = dayParts(nxt.d);
+    var l = el('div', ''); l.appendChild(el('span', 'lbl', 'Agla event'));
+    l.appendChild(el('span', 'what', nxt.n));
+    l.appendChild(el('span', 'when', ' ' + p.dow + ' ' + p.day + ' ' + p.mon + ', ' + nxt.t + ' PKT'));
+    var r = el('div', 'count', cnt);
+    box.appendChild(l); box.appendChild(r);
+  }
+
+  build();
+  buildChips();
+  tickNext();
+  setInterval(tickNext, 30000);
+
+  document.getElementById('clear').addEventListener('click', function () {
+    st.act = {}; save();
+    EVENTS.forEach(function (e) { refs[e.id].ia.value = ''; updateEvent(e); });
+    var seen = [];
+    EVENTS.forEach(function (e) { var s = slots[e.id]; if (seen.indexOf(s) < 0) { seen.push(s); updateSlot(s); } });
+  });
+})();
+</script>
